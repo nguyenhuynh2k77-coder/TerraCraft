@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>TerraCraft v25.2 - Texture Fix Final</title>
+    <title>OpenGeode v25.3 - Perfect Hotbar</title>
     <style>
         body { margin: 0; overflow: hidden; background: #111; font-family: 'Courier New', monospace; user-select: none; }
         canvas { display: block; }
@@ -81,38 +81,33 @@ const GAME_STATE = {
     spawnPoint: null
 };
 
-// Khởi đầu
 GAME_STATE.inventory[0] = { id: BLOCKS.WOOD_SWORD, name: 'Kiếm Gỗ', count: 1, durability: 40 };
 GAME_STATE.inventory[1] = { id: BLOCKS.APPLE, name: 'Táo', count: 5 }; 
 GAME_STATE.inventory[2] = { id: BLOCKS.SLIMEBALL, name: 'Mật Slime', count: 10 }; 
 
 // --- HELPER: GET ITEM ASSET ---
-// Hàm này trả về texture key và frame cho mọi item ID
 function getItemAsset(id) {
-    // 1. Block Tiles (ID < 100)
-    if (id < 100) {
-        return { key: 'maptiles', frame: id };
-    }
-    
-    // 2. Tools (ID >= 200)
-    const tools = {
+    if (id < 100) return { key: 'maptiles', frame: id }; // Blocks from map tileset
+
+    const icons = {
+        // Tools
         [BLOCKS.WOOD_PICKAXE]: 'icon_wood_pickaxe', [BLOCKS.WOOD_AXE]: 'icon_wood_axe', [BLOCKS.WOOD_SWORD]: 'icon_wood_sword',
         [BLOCKS.STONE_PICKAXE]: 'icon_stone_pickaxe', [BLOCKS.STONE_AXE]: 'icon_stone_axe', [BLOCKS.STONE_SWORD]: 'icon_stone_sword',
         [BLOCKS.IRON_PICKAXE]: 'icon_iron_pickaxe', [BLOCKS.IRON_AXE]: 'icon_iron_axe', [BLOCKS.IRON_SHOVEL]: 'icon_iron_shovel', [BLOCKS.IRON_SWORD]: 'icon_iron_sword',
-        [BLOCKS.SHEARS]: 'icon_shears', [BLOCKS.SLIME_BOOTS]: 'icon_slime_boots'
-    };
-    if (tools[id]) return { key: tools[id], frame: undefined };
-
-    // 3. Materials (ID 100-199)
-    const materials = {
+        [BLOCKS.SHEARS]: 'icon_shears', [BLOCKS.SLIME_BOOTS]: 'icon_slime_boots',
+        // Materials
         [BLOCKS.RAW_IRON]: 'icon_raw_iron', [BLOCKS.RAW_GOLD]: 'icon_raw_gold', [BLOCKS.COAL]: 'icon_coal',
         [BLOCKS.IRON_INGOT]: 'icon_iron_ingot', [BLOCKS.GOLD_INGOT]: 'icon_gold_ingot',
         [BLOCKS.SLIMEBALL]: 'icon_slimeball', [BLOCKS.DIAMOND]: 'icon_diamond',
         [BLOCKS.APPLE]: 'icon_apple', [BLOCKS.GOLDEN_APPLE]: 'icon_golden_apple'
     };
-    if (materials[id]) return { key: materials[id], frame: undefined };
+    
+    // Fallback for special block items that need UI icons but are blocks in world
+    if (id === BLOCKS.BED) return { key: 'icon_bed', frame: undefined };
+    if (id === BLOCKS.CAMPFIRE) return { key: 'icon_campfire', frame: undefined };
+    if (id === BLOCKS.CHEST) return { key: 'icon_chest', frame: undefined };
 
-    // Fallback
+    if (icons[id]) return { key: icons[id], frame: undefined };
     return { key: 'marker', frame: undefined };
 }
 
@@ -216,7 +211,7 @@ class GameScene extends Phaser.Scene {
             for(let i=0; i<32; i+=4) { for(let j=0; j<32; j+=4) { if(Math.random() < density) g.fillRect(x+i, y+j, 4, 4); }}
         };
 
-        // Blocks Generation
+        // --- MAP TILES ---
         drawNoise(0, 0, 0x795548, 0x5D4037, 0.3); // 0. Dirt
         drawNoise(32, 0, 0x795548, 0x5D4037, 0.3); g.fillStyle(0x558B2F); g.fillRect(32, 0, 32, 8); // 1. Grass
         drawNoise(64, 0, 0x9E9E9E, 0x757575, 0.4); // 2. Stone
@@ -238,22 +233,17 @@ class GameScene extends Phaser.Scene {
         g.fillStyle(0x43A047); g.fillRect(576, 0, 32, 32); g.fillStyle(0x1B5E20); g.fillRect(576+4, 0, 4, 32); g.fillRect(576+14, 0, 4, 32); g.fillRect(576+24, 0, 4, 32); g.fillStyle(0x000000); for(let i=0; i<32; i+=8) { g.fillRect(576, i+4, 2, 2); g.fillRect(576+30, i+4, 2, 2); } // 18 Cactus
         drawNoise(608, 0, 0xFFFFFF, 0xE3F2FD, 0.1); // 19 Snow
         g.fillStyle(0x8D6E63); g.fillRect(640, 0, 32, 32); g.fillStyle(0x3E2723); g.strokeRect(640, 0, 32, 32); g.fillStyle(0xFFD700); g.fillRect(640+14, 12, 4, 6); // 20 Chest
-        
-        // 21. CAMPFIRE
-        g.fillStyle(0x3E2723); g.fillRect(672+4, 24, 24, 8); g.fillStyle(0xFF5722); g.fillRect(672+10, 10, 12, 14); g.fillStyle(0xFFEB3B); g.fillRect(672+12, 12, 8, 10); 
-        // 22. BED
-        g.fillStyle(0x8D6E63); g.fillRect(704, 16, 32, 16); g.fillStyle(0xD32F2F); g.fillRect(704, 16, 32, 12); g.fillStyle(0xFFFFFF); g.fillRect(704, 16, 8, 10); 
+        g.fillStyle(0x3E2723); g.fillRect(672+4, 24, 24, 8); g.fillStyle(0xFF5722); g.fillRect(672+10, 10, 12, 14); g.fillStyle(0xFFEB3B); g.fillRect(672+12, 12, 8, 10); // 21 Campfire
+        g.fillStyle(0x8D6E63); g.fillRect(704, 16, 32, 16); g.fillStyle(0xD32F2F); g.fillRect(704, 16, 32, 12); g.fillStyle(0xFFFFFF); g.fillRect(704, 16, 8, 10); // 22 Bed
         g.generateTexture('maptiles', 736, 32);
 
-        // --- ICONS (UI) GENERATION ---
-        const createIcon = (key, callback) => { g.clear(); callback(); g.generateTexture(key, 32, 32); };
-
-        createIcon('icon_coal', () => { 
-            g.fillStyle(0x212121); 
-            drawPixel(6,5,0x212121); drawPixel(7,5,0x212121); drawPixel(8,5,0x212121); drawPixel(9,5,0x212121);
-            g.fillRect(10, 12, 12, 8); 
-        });
+        // --- ICONS (UI) GENERATION - FIXED ---
+        // Coal
+        g.clear(); g.fillStyle(0x212121); 
+        drawPixel(6,5,0x212121); drawPixel(7,5,0x212121); drawPixel(8,5,0x212121); drawPixel(9,5,0x212121);
+        g.fillRect(10, 12, 12, 8); g.generateTexture('icon_coal', 32, 32);
         
+        // Raw Ores
         const drawRaw = (key, color) => {
             g.clear(); g.fillStyle(color);
             drawPixel(7,5,color); drawPixel(8,5,color); 
@@ -263,12 +253,14 @@ class GameScene extends Phaser.Scene {
         drawRaw('icon_raw_iron', 0xD7CCC8);
         drawRaw('icon_raw_gold', 0xFFECB3);
 
-        createIcon('icon_slimeball', () => {
-            drawPixel(7,6,0x33691E); drawPixel(8,6,0x33691E); 
-            g.fillStyle(0x76FF03); g.fillRect(10, 12, 12, 6);
-            drawPixel(7,7,0xCCFF90);
-        });
+        // Slimeball
+        g.clear();
+        drawPixel(7,6,0x33691E); drawPixel(8,6,0x33691E); 
+        g.fillStyle(0x76FF03); g.fillRect(10, 12, 12, 6);
+        drawPixel(7,7,0xCCFF90);
+        g.generateTexture('icon_slimeball', 32, 32);
 
+        // Ingots
         const drawIngot = (key, color) => {
             g.clear(); g.fillStyle(color); g.fillRect(6, 10, 20, 12); g.fillStyle(0xFFFFFF); g.fillRect(6, 10, 20, 2);
             g.generateTexture(key, 32, 32);
@@ -276,14 +268,17 @@ class GameScene extends Phaser.Scene {
         drawIngot('icon_iron_ingot', 0xD7CCC8);
         drawIngot('icon_gold_ingot', 0xFFECB3);
 
-        createIcon('icon_diamond', () => { g.fillStyle(0x00BFFF); drawPixel(7,5,0x00BFFF); drawPixel(8,5,0x00BFFF); g.fillRect(12, 12, 8, 8); });
-        createIcon('icon_apple', () => { g.fillStyle(0xD50000); g.fillRect(12, 12, 8, 8); g.fillStyle(0x2E7D32); drawPixel(7,4,0x2E7D32); });
-        createIcon('icon_golden_apple', () => { g.fillStyle(0xFFD700); g.fillRect(12, 12, 8, 8); g.fillStyle(0xFFFFFF); drawPixel(6,6,0xFFFFFF); });
-        
-        // Custom icons for specific blocks to look better in inventory
-        createIcon('icon_bed', () => { g.fillStyle(0xD32F2F); g.fillRect(4, 10, 24, 12); g.fillStyle(0xFFFFFF); g.fillRect(4, 10, 8, 6); });
-        createIcon('icon_campfire', () => { g.fillStyle(0x3E2723); g.fillRect(6, 20, 20, 4); g.fillStyle(0xFF5722); g.fillRect(12, 10, 8, 10); });
-        createIcon('icon_chest', () => { g.fillStyle(0x8D6E63); g.fillRect(6, 10, 20, 16); g.fillStyle(0xFFD700); g.fillRect(14, 16, 4, 4); });
+        // Diamond
+        g.clear(); g.fillStyle(0x00BFFF); drawPixel(7,5,0x00BFFF); drawPixel(8,5,0x00BFFF); g.fillRect(12, 12, 8, 8); g.generateTexture('icon_diamond', 32, 32);
+
+        // Apples
+        g.clear(); g.fillStyle(0xD50000); g.fillRect(12, 12, 8, 8); g.fillStyle(0x2E7D32); drawPixel(7,4,0x2E7D32); g.generateTexture('icon_apple', 32, 32);
+        g.clear(); g.fillStyle(0xFFD700); g.fillRect(12, 12, 8, 8); g.fillStyle(0xFFFFFF); drawPixel(6,6,0xFFFFFF); g.generateTexture('icon_golden_apple', 32, 32);
+
+        // UI Specific Block Icons
+        g.clear(); g.fillStyle(0xD32F2F); g.fillRect(4, 10, 24, 12); g.fillStyle(0xFFFFFF); g.fillRect(4, 10, 8, 6); g.generateTexture('icon_bed', 32, 32);
+        g.clear(); g.fillStyle(0x3E2723); g.fillRect(6, 20, 20, 4); g.fillStyle(0xFF5722); g.fillRect(12, 10, 8, 10); g.generateTexture('icon_campfire', 32, 32);
+        g.clear(); g.fillStyle(0x8D6E63); g.fillRect(6, 10, 20, 16); g.fillStyle(0xFFD700); g.fillRect(14, 16, 4, 4); g.generateTexture('icon_chest', 32, 32);
 
         // Tools
         const drawMCTool = (key, headColor, type) => {
@@ -465,7 +460,7 @@ class GameScene extends Phaser.Scene {
         this.prevVelocityY = 0;
     }
 
-    // ... (Game Logic: spawn, mining, damage... giữ nguyên)
+    // ... (Game Logic same as v25.0) ...
     trySpawnEnemy() { if (this.enemies.countActive() >= SPAWN_CONFIG.MAX_ENEMIES) return; for(let i=0; i<5; i++) { const spawnX = Phaser.Math.Between(5, WORLD_WIDTH - 5); for (let y = 0; y < WORLD_HEIGHT - 1; y++) { const tile = this.groundLayer.getTileAt(spawnX, y); if (tile && tile.index !== -1) { const tileAbove = this.groundLayer.getTileAt(spawnX, y - 1); if (!tileAbove || tileAbove.index === -1) { const pixelX = spawnX * 32; const pixelY = (y - 1) * 32; const dist = Phaser.Math.Distance.Between(pixelX, pixelY, this.player.x, this.player.y); if (dist > SPAWN_CONFIG.MIN_DIST) { let type = 'SLIME'; if (GAME_STATE.isBloodMoon) { if (Math.random() < 0.5) type = 'SKELETON'; } else { if (spawnX >= 100 && spawnX < 200) type = 'MUMMY'; else if (spawnX >= 200) type = 'YETI'; else if (this.time.now % 24000 > 12000) type = 'SKELETON'; } this.enemies.add(new Enemy(this, pixelX, pixelY, type)); return; } } break; } } } }
     createDrop(x, y, id, count) { let data = getItemAsset(id); for(let i=0; i<count; i++) { const drop = this.drops.create(x + Phaser.Math.Between(-10,10), y - 10, data.key, data.frame); drop.setDisplaySize(16, 16); drop.setVelocity(Phaser.Math.Between(-50,50), -150); drop.setData('id', id); drop.setData('durability', undefined); drop.setData('dropTime', this.time.now + 500); } }
     generateVein(cx, cy, id, size) { const sx=Math.floor(cx-size), ex=Math.ceil(cx+size), sy=Math.floor(cy-size), ey=Math.ceil(cy+size); for(let x=sx; x<=ex; x++) { for(let y=sy; y<=ey; y++) { if(x<0||x>=WORLD_WIDTH||y<0||y>=WORLD_HEIGHT) continue; if(Phaser.Math.Distance.Between(x,y,cx,cy) <= size && Math.random()>0.2) { if(this.groundLayer.getTileAt(x,y)?.index === BLOCKS.STONE) this.groundLayer.putTileAt(id,x,y); } } } }
@@ -478,7 +473,7 @@ class GameScene extends Phaser.Scene {
     update(time, delta) {
         if (GAME_STATE.hp <= 0) return; 
 
-        // Day/Night
+        // Day/Night & Blood Moon
         const dayDuration = 120000;
         const timeOfDay = (time % dayDuration) / dayDuration;
         let alpha = 0; let bgColor = 0x87CEEB;
@@ -1032,4 +1027,3 @@ const game = new Phaser.Game(config);
 </script>
 </body>
 </html>
-
