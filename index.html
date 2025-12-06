@@ -3,11 +3,34 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>OpenGeode v25.3 Mobile - Touch Controls</title>
+    <title>TerraCraft Mobile</title>
     <style>
         body { margin: 0; overflow: hidden; background: #111; font-family: 'Courier New', monospace; user-select: none; -webkit-user-select: none; touch-action: none; }
         canvas { display: block; }
     </style>
+    <script>
+        (function() {
+            var canvas = document.createElement('canvas');
+            canvas.width = 64; canvas.height = 64;
+            var ctx = canvas.getContext('2d');
+            // Vẽ nền đất (Nâu)
+            ctx.fillStyle = '#795548'; ctx.fillRect(0, 0, 64, 64);
+            // Vẽ hạt đất (Nâu đậm - Noise)
+            ctx.fillStyle = '#5D4037';
+            for(var i=0; i<30; i++) ctx.fillRect(Math.random()*64, Math.random()*64, 8, 8);
+            // Vẽ lớp cỏ bên trên (Xanh lá)
+            ctx.fillStyle = '#558B2F'; ctx.fillRect(0, 0, 64, 16);
+            // Vẽ cỏ rủ xuống
+            ctx.fillStyle = '#7CB342';
+            for(var i=0; i<64; i+=8) if(Math.random()>0.3) ctx.fillRect(i, 16, 8, 8);
+            
+            var link = document.createElement('link');
+            link.type = 'image/png';
+            link.rel = 'icon';
+            link.href = canvas.toDataURL("image/png");
+            document.head.appendChild(link);
+        })();
+    </script>
     <script src="https://cdn.jsdelivr.net/npm/phaser@3.80.0/dist/phaser.min.js"></script>
 </head>
 <body>
