@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>OpenGeode v25.4 - World Size Selection</title>
+    <title>OpenGeode v26.1 - Fixed Size & Biomes</title>
     <style>
         body { margin: 0; overflow: hidden; background: #222; font-family: 'Courier New', monospace; user-select: none; }
         canvas { display: block; }
@@ -13,9 +13,9 @@
 <body>
 
 <script>
-// --- CẤU HÌNH ---
+// --- CẤU HÌNH CHUNG ---
 const TILE_SIZE = 32;
-let WORLD_WIDTH = 300; // Mặc định, sẽ thay đổi theo lựa chọn
+let WORLD_WIDTH = 300; // Dùng LET để có thể thay đổi từ Menu
 const WORLD_HEIGHT = 80;
 
 const SPAWN_CONFIG = { INTERVAL: 3000, MAX_SLIMES: 15, MIN_DIST: 400 };
@@ -96,7 +96,7 @@ function getItemAsset(id) {
         [BLOCKS.SHEARS]: 'icon_shears', [BLOCKS.SLIME_BOOTS]: 'icon_slime_boots',
         [BLOCKS.RAW_IRON]: 'icon_raw_iron', [BLOCKS.RAW_GOLD]: 'icon_raw_gold', [BLOCKS.COAL]: 'icon_coal',
         [BLOCKS.IRON_INGOT]: 'icon_iron_ingot', [BLOCKS.GOLD_INGOT]: 'icon_gold_ingot',
-        [BLOCKS.SLIMEBALL]: 'icon_slime_ball_ui', [BLOCKS.DIAMOND]: 'icon_diamond', // Changed key to avoid clash
+        [BLOCKS.SLIMEBALL]: 'icon_slime_ball_ui', [BLOCKS.DIAMOND]: 'icon_diamond',
         [BLOCKS.APPLE]: 'icon_apple', [BLOCKS.GOLDEN_APPLE]: 'icon_golden_apple'
     };
     if (id === BLOCKS.BED) return { key: 'icon_bed', frame: undefined };
@@ -106,52 +106,39 @@ function getItemAsset(id) {
     return { key: 'marker', frame: undefined };
 }
 
-// --- HELPER: GET BIOME ---
+// --- HELPER: GET BIOME (RE-ORDERED) ---
 function getBiomeAt(x) {
     const section = WORLD_WIDTH / 3;
-    const noise = Math.sin((x + GAME_STATE.seed) / 60) + Math.sin((x + GAME_STATE.seed) / 20) * 0.2;
-    
-    // Main regions mixed with noise
-    if (x < section) return 'FOREST';
-    if (x >= section && x < section * 2) return 'DESERT';
-    if (x >= section * 2) return 'SNOW';
-    
-    // Fallback based on noise if we wanted mixed biomes, but strict separation is requested
-    if (noise < -0.2) return 'MOUNTAIN'; 
-    return 'PLAINS';
+    // ORDER: DESERT -> FOREST -> SNOW
+    if (x < section) return 'DESERT';
+    if (x >= section && x < section * 2) return 'FOREST'; // FOREST IS NOW MIDDLE
+    return 'SNOW';
 }
 
-// --- NEW SCENE: MAIN MENU ---
+// --- SCENE: MENU ---
 class MenuScene extends Phaser.Scene {
     constructor() { super({ key: 'MenuScene' }); }
-    
     create() {
         const w = this.scale.width;
         const h = this.scale.height;
-
-        // Background
         this.add.rectangle(w/2, h/2, w, h, 0x212121);
-        
-        // Title
         this.add.text(w/2, h/3, "OPEN GEODE", { font: 'bold 48px Courier New', fill: '#00BFFF' }).setOrigin(0.5);
         this.add.text(w/2, h/3 + 40, "Chọn kích thước thế giới:", { font: '20px Courier New', fill: '#FFF' }).setOrigin(0.5);
 
-        // Buttons
         this.createButton(w/2, h/2, "NHỎ (150)", 0x4CAF50, 150);
         this.createButton(w/2, h/2 + 60, "VỪA (300)", 0xFF9800, 300);
         this.createButton(w/2, h/2 + 120, "ĐẠI (600)", 0xF44336, 600);
     }
-
     createButton(x, y, text, color, width) {
         const bg = this.add.rectangle(x, y, 200, 50, color).setInteractive({ useHandCursor: true });
         const txt = this.add.text(x, y, text, { font: 'bold 20px Courier New', fill: '#FFF' }).setOrigin(0.5);
-        
         bg.on('pointerover', () => bg.setAlpha(0.8));
         bg.on('pointerout', () => bg.setAlpha(1));
         bg.on('pointerdown', () => {
-            WORLD_WIDTH = width; // Set global config
-            this.scene.start('GameScene'); // Start Game
-            this.scene.start('UIScene'); // Start UI
+            WORLD_WIDTH = width; // Update global size
+            this.scene.start('GameScene'); 
+            this.scene.start('UIScene');
+            this.scene.stop('MenuScene');
         });
     }
 }
@@ -264,22 +251,22 @@ class GameScene extends Phaser.Scene {
         drawOre(96, 0x212121); drawOre(128, 0xD7CCC8); drawOre(160, 0xFFECB3); 
         drawOre(192, 0x00BFFF); 
 
-        g.fillStyle(0x6D4C41); g.fillRect(224, 0, 32, 32); g.fillStyle(0x3E2723); g.fillRect(224+4, 0, 4, 32); g.fillRect(224+12, 0, 4, 32); g.fillRect(224+24, 0, 4, 32); g.fillRect(224, 0, 32, 2); g.fillRect(224, 30, 32, 2); 
-        g.fillStyle(0x2E7D32); g.fillRect(256, 0, 32, 32); g.fillStyle(0x66BB6A); for(let i=0; i<32; i+=4) { for(let j=0; j<32; j+=4) { if(Math.random() < 0.4) g.fillRect(256+i, j, 4, 4); }} 
-        g.fillStyle(0x5D4037); g.fillRect(300, 14, 4, 18); g.fillStyle(0xFFEB3B); g.fillRect(298, 10, 8, 4); 
-        g.fillStyle(0x8D6E63); g.fillRect(320, 0, 32, 32); g.fillStyle(0x3E2723); g.strokeRect(320, 0, 32, 32); g.fillStyle(0x5D4037); g.fillRect(320+4, 4, 24, 24); 
-        g.fillStyle(0x616161); g.fillRect(352, 0, 32, 32); g.fillStyle(0x000000); g.fillRect(352+4, 4, 24, 24); 
-        g.fillStyle(0x757575); g.fillRect(384, 0, 32, 32); 
-        g.fillStyle(0xA1887F); g.fillRect(416, 0, 32, 32); 
-        g.fillStyle(0x424242); g.fillRect(448, 0, 32, 32); 
-        g.fillStyle(0x33691E); g.fillRect(480+14, 16, 4, 16); 
-        g.fillStyle(0x76FF03); g.fillRect(512, 0, 32, 32); g.fillStyle(0x64DD17); g.fillRect(512+4, 4, 24, 24); 
-        drawNoise(544, 0, 0xF6E79D, 0xE6D690, 0.15); 
-        g.fillStyle(0x43A047); g.fillRect(576, 0, 32, 32); g.fillStyle(0x1B5E20); g.fillRect(576+4, 0, 4, 32); g.fillRect(576+14, 0, 4, 32); g.fillRect(576+24, 0, 4, 32); g.fillStyle(0x000000); for(let i=0; i<32; i+=8) { g.fillRect(576, i+4, 2, 2); g.fillRect(576+30, i+4, 2, 2); } 
-        drawNoise(608, 0, 0xFFFFFF, 0xE3F2FD, 0.1); 
-        g.fillStyle(0x8D6E63); g.fillRect(640, 0, 32, 32); g.fillStyle(0x3E2723); g.strokeRect(640, 0, 32, 32); g.fillStyle(0xFFD700); g.fillRect(640+14, 12, 4, 6); 
-        g.fillStyle(0x3E2723); g.fillRect(672+4, 24, 24, 8); g.fillStyle(0xFF5722); g.fillRect(672+10, 10, 12, 14); g.fillStyle(0xFFEB3B); g.fillRect(672+12, 12, 8, 10); 
-        g.fillStyle(0x8D6E63); g.fillRect(704, 16, 32, 16); g.fillStyle(0xD32F2F); g.fillRect(704, 16, 32, 12); g.fillStyle(0xFFFFFF); g.fillRect(704, 16, 8, 10); 
+        g.fillStyle(0x6D4C41); g.fillRect(224, 0, 32, 32); g.fillStyle(0x3E2723); g.fillRect(224+4, 0, 4, 32); g.fillRect(224+12, 0, 4, 32); g.fillRect(224+24, 0, 4, 32); g.fillRect(224, 0, 32, 2); g.fillRect(224, 30, 32, 2); // 7 Log
+        g.fillStyle(0x2E7D32); g.fillRect(256, 0, 32, 32); g.fillStyle(0x66BB6A); for(let i=0; i<32; i+=4) { for(let j=0; j<32; j+=4) { if(Math.random() < 0.4) g.fillRect(256+i, j, 4, 4); }} // 8 Leaves
+        g.fillStyle(0x5D4037); g.fillRect(300, 14, 4, 18); g.fillStyle(0xFFEB3B); g.fillRect(298, 10, 8, 4); // 9 Torch
+        g.fillStyle(0x8D6E63); g.fillRect(320, 0, 32, 32); g.fillStyle(0x3E2723); g.strokeRect(320, 0, 32, 32); g.fillStyle(0x5D4037); g.fillRect(320+4, 4, 24, 24); // 10 Workbench
+        g.fillStyle(0x616161); g.fillRect(352, 0, 32, 32); g.fillStyle(0x000000); g.fillRect(352+4, 4, 24, 24); // 11 Furnace
+        g.fillStyle(0x757575); g.fillRect(384, 0, 32, 32); // 12 Brick
+        g.fillStyle(0xA1887F); g.fillRect(416, 0, 32, 32); // 13 Planks
+        g.fillStyle(0x424242); g.fillRect(448, 0, 32, 32); // 14 Anvil
+        g.fillStyle(0x33691E); g.fillRect(480+14, 16, 4, 16); // 15 Sapling
+        g.fillStyle(0x76FF03); g.fillRect(512, 0, 32, 32); g.fillStyle(0x64DD17); g.fillRect(512+4, 4, 24, 24); // 16 Slime Block
+        drawNoise(544, 0, 0xF6E79D, 0xE6D690, 0.15); // 17 Sand
+        g.fillStyle(0x43A047); g.fillRect(576, 0, 32, 32); g.fillStyle(0x1B5E20); g.fillRect(576+4, 0, 4, 32); g.fillRect(576+14, 0, 4, 32); g.fillRect(576+24, 0, 4, 32); g.fillStyle(0x000000); for(let i=0; i<32; i+=8) { g.fillRect(576, i+4, 2, 2); g.fillRect(576+30, i+4, 2, 2); } // 18 Cactus
+        drawNoise(608, 0, 0xFFFFFF, 0xE3F2FD, 0.1); // 19 Snow
+        g.fillStyle(0x8D6E63); g.fillRect(640, 0, 32, 32); g.fillStyle(0x3E2723); g.strokeRect(640, 0, 32, 32); g.fillStyle(0xFFD700); g.fillRect(640+14, 12, 4, 6); // 20 Chest
+        g.fillStyle(0x3E2723); g.fillRect(672+4, 24, 24, 8); g.fillStyle(0xFF5722); g.fillRect(672+10, 10, 12, 14); g.fillStyle(0xFFEB3B); g.fillRect(672+12, 12, 8, 10); // 21 Campfire
+        g.fillStyle(0x8D6E63); g.fillRect(704, 16, 32, 16); g.fillStyle(0xD32F2F); g.fillRect(704, 16, 32, 12); g.fillStyle(0xFFFFFF); g.fillRect(704, 16, 8, 10); // 22 Bed
         g.generateTexture('maptiles', 736, 32);
 
         // --- ICONS (UI) ---
@@ -288,7 +275,7 @@ class GameScene extends Phaser.Scene {
         const drawRaw = (key, color) => { g.clear(); g.fillStyle(color); drawPixel(7,5,color); drawPixel(8,5,color); g.fillRect(10, 10, 12, 10); g.generateTexture(key, 32, 32); };
         drawRaw('icon_raw_iron', 0xD7CCC8); drawRaw('icon_raw_gold', 0xFFECB3);
         createIcon('icon_slimeball', () => { drawPixel(7,6,0x33691E); drawPixel(8,6,0x33691E); g.fillStyle(0x76FF03); g.fillRect(10, 12, 12, 6); drawPixel(7,7,0xCCFF90); });
-        createIcon('icon_slime_ball_ui', () => { drawPixel(7,6,0x33691E); drawPixel(8,6,0x33691E); g.fillStyle(0x76FF03); g.fillRect(10, 12, 12, 6); drawPixel(7,7,0xCCFF90); }); // Fix name mismatch
+        createIcon('icon_slime_ball_ui', () => { drawPixel(7,6,0x33691E); drawPixel(8,6,0x33691E); g.fillStyle(0x76FF03); g.fillRect(10, 12, 12, 6); drawPixel(7,7,0xCCFF90); });
         const drawIngot = (key, color) => { g.clear(); g.fillStyle(color); g.fillRect(6, 10, 20, 12); g.fillStyle(0xFFFFFF); g.fillRect(6, 10, 20, 2); g.generateTexture(key, 32, 32); };
         drawIngot('icon_iron_ingot', 0xD7CCC8); drawIngot('icon_gold_ingot', 0xFFECB3);
         createIcon('icon_diamond', () => { g.fillStyle(0x00BFFF); drawPixel(7,5,0x00BFFF); drawPixel(8,5,0x00BFFF); g.fillRect(12, 12, 8, 8); });
@@ -460,11 +447,25 @@ class GameScene extends Phaser.Scene {
         
         this.darkness = this.make.renderTexture({ width: this.scale.width, height: this.scale.height }, false);
         this.darkness.setDepth(20); this.darkness.setScrollFactor(0); 
+        this.questText = this.add.text(20, 20, '', { font: 'bold 18px Courier New', fill: '#FFD700', stroke: '#000', strokeThickness: 3 }).setScrollFactor(0).setDepth(30);
 
-        // Start Menu is active, so we don't start spawning immediately until GameScene is properly active
-        // But for simplicity, the menu scene handles the start.
+        this.time.addEvent({ delay: SPAWN_CONFIG.INTERVAL, callback: this.trySpawnEnemy, callbackScope: this, loop: true });
+
+        this.marker = this.add.image(0,0,'marker').setOrigin(0).setAlpha(0).setDepth(20);
+        this.cursors = this.input.keyboard.createCursorKeys();
+        this.keys = this.input.keyboard.addKeys('W,A,S,D,R,E,Q,SHIFT,ONE,TWO,THREE,FOUR,FIVE,SIX,SEVEN,EIGHT,NINE,ZERO');
+        this.input.mouse.disableContextMenu();
+        this.input.on('wheel', (p, g, x, y, z) => {
+            if (y > 0) GAME_STATE.selectedSlot = (GAME_STATE.selectedSlot + 1) % 10;
+            else if (y < 0) GAME_STATE.selectedSlot = (GAME_STATE.selectedSlot - 1 + 10) % 10;
+        });
+        
+        this.wasClicking = false;
+        this.scene.launch('UIScene');
+        this.prevVelocityY = 0;
     }
-    // ... (Spawn/Gen functions same as v25.4) ...
+
+    // ... (Spawn/Gen functions same as v25.0) ...
     trySpawnEnemy() { if (this.enemies.countActive() >= SPAWN_CONFIG.MAX_ENEMIES) return; for(let i=0; i<5; i++) { const spawnX = Phaser.Math.Between(5, WORLD_WIDTH - 5); const biome = getBiomeAt(spawnX); for (let y = 0; y < WORLD_HEIGHT - 1; y++) { const tile = this.groundLayer.getTileAt(spawnX, y); if (tile && tile.index !== -1) { const tileAbove = this.groundLayer.getTileAt(spawnX, y - 1); if (!tileAbove || tileAbove.index === -1) { const pixelX = spawnX * 32; const pixelY = (y - 1) * 32; const dist = Phaser.Math.Distance.Between(pixelX, pixelY, this.player.x, this.player.y); if (dist > SPAWN_CONFIG.MIN_DIST) { let type = 'SLIME'; if (GAME_STATE.isBloodMoon) { if (Math.random() < 0.5) type = 'SKELETON'; } else { if (biome === 'DESERT') type = 'MUMMY'; else if (biome === 'SNOW') type = 'YETI'; else if (this.time.now % 24000 > 12000) type = 'SKELETON'; } this.enemies.add(new Enemy(this, pixelX, pixelY, type)); return; } } break; } } } }
     createDrop(x, y, id, count) { let data = getItemAsset(id); for(let i=0; i<count; i++) { const drop = this.drops.create(x + Phaser.Math.Between(-10,10), y - 10, data.key, data.frame); drop.setDisplaySize(16, 16); drop.setVelocity(Phaser.Math.Between(-50,50), -150); drop.setData('id', id); drop.setData('durability', undefined); drop.setData('dropTime', this.time.now + 500); } }
     generateVein(cx, cy, id, size) { const sx=Math.floor(cx-size), ex=Math.ceil(cx+size), sy=Math.floor(cy-size), ey=Math.ceil(cy+size); for(let x=sx; x<=ex; x++) { for(let y=sy; y<=ey; y++) { if(x<0||x>=WORLD_WIDTH||y<0||y>=WORLD_HEIGHT) continue; if(Phaser.Math.Distance.Between(x,y,cx,cy) <= size && Math.random()>0.2) { if(this.groundLayer.getTileAt(x,y)?.index === BLOCKS.STONE) this.groundLayer.putTileAt(id,x,y); } } } }
@@ -477,7 +478,7 @@ class GameScene extends Phaser.Scene {
     update(time, delta) {
         if (GAME_STATE.hp <= 0) return; 
 
-        // Day/Night & Blood Moon
+        // Day/Night
         const dayDuration = 120000;
         const timeOfDay = (time % dayDuration) / dayDuration;
         let alpha = 0; let bgColor = 0x87CEEB;
@@ -541,7 +542,16 @@ class GameScene extends Phaser.Scene {
         }
 
         const quest = QUESTS[GAME_STATE.currentQuestIdx];
-        // ... (UI Update handled in UIScene) ...
+        // ... (Quest logic is handled in UIScene but we can update it here or there) ...
+        if (quest && quest.check(GAME_STATE.inventory)) {
+             this.gainXP(quest.rewardXP);
+             GAME_STATE.currentQuestIdx++;
+             this.cameras.main.flash(500, 0, 255, 0);
+        }
+        if (this.questText) {
+             if (quest) this.questText.setText(`Nhiệm vụ: ${quest.text}`);
+             else this.questText.setText("Đã hoàn thành tất cả nhiệm vụ!");
+        }
 
         this.enemies.children.iterate(enemy => { if(enemy && enemy.active) enemy.update(time, delta, this.player); });
 
@@ -641,7 +651,11 @@ class GameScene extends Phaser.Scene {
         item.count--; if (item.count <= 0) GAME_STATE.inventory[slotIdx] = null;
     }
 
-    // --- REVISED INTERACTION LOGIC ---
+    getToolTexture(id) {
+        // Legacy fallback, now handled by getItemAsset
+        return getItemAsset(id).key;
+    }
+
     handleInteraction(delta) {
         if (GAME_STATE.showCrafting || GAME_STATE.hp <= 0) return;
         const ptr = this.input.activePointer; const worldPt = ptr.positionToCamera(this.cameras.main);
