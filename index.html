@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>TerraCraft Mobile - Fixed</title>
+    <title>TerraCraft Mobile - Fixed Memory Leak</title>
     <style>
         body { margin: 0; overflow: hidden; background: #111; font-family: 'Courier New', monospace; user-select: none; -webkit-user-select: none; touch-action: none; }
         canvas { display: block; }
@@ -840,7 +840,7 @@ class UIScene extends Phaser.Scene {
     create() {
         // --- 1. SETUP GRAPHICS (STATIC) ---
         this.graphics = this.add.graphics(); 
-        
+        this.itemIcons = this.add.group(); 
         this.craftContainer = this.add.container(this.scale.width/2, this.scale.height/2).setVisible(false);
         const bg = this.add.graphics(); bg.fillStyle(0xC6C6C6, 1); bg.fillRoundedRect(-250, -220, 500, 440, 4); bg.lineStyle(4, 0xFFFFFF); bg.strokeRoundedRect(-250, -220, 500, 440, 4); this.craftContainer.add(bg);
         
