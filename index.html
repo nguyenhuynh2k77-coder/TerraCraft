@@ -3,24 +3,21 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>TerraCraft HD - Ultimate Fix</title>
+    <title>TerraCraft - Fixed Freeze</title>
     <style>
         html, body { width: 100%; height: 100%; margin: 0; padding: 0; background: #000; overflow: hidden; touch-action: none; user-select: none; -webkit-user-select: none; }
         canvas { display: block; }
-        #debug { position: absolute; top: 0; left: 0; color: #0f0; font-family: monospace; padding: 5px; pointer-events: none; }
     </style>
     <script src="https://cdn.jsdelivr.net/npm/phaser@3.80.0/dist/phaser.min.js"></script>
 </head>
 <body>
-<div id="debug">Initializing...</div>
 <script>
 window.onload = function() {
-    // --- CẤU HÌNH ---
+    // --- 1. CẤU HÌNH ---
     const CFG = {
         TILE: 32, W: 300, H: 80,
         GRAVITY: 1200, WALK: 120, RUN: 240, JUMP: -500,
-        SPAWN_RATE: 5000, MAX_MOBS: 10, // Giảm nhẹ max mobs để ổn định
-        DROP_LIFETIME: 60000 // Đồ rơi tự biến mất sau 60s
+        SPAWN_RATE: 5000, MAX_MOBS: 10, DAY_LEN: 120000
     };
 
     const ID = {
@@ -33,79 +30,67 @@ window.onload = function() {
         WOOD_PICK:200, WOOD_AXE:201, WOOD_SWORD:202
     };
 
+    // --- 2. GLOBAL STATE ---
     const GAME = {
         hp: 100, maxHp: 100, hunger: 100, maxHunger: 100,
-        xp: 0, level: 1, inv: Array(10).fill(null), slot: 0,
-        dead: false, mining: 0, input: { l:0, r:0, j:0, atk:0, use:0, drop:0 },
-        dirtyUI: true // Cờ đánh dấu cần vẽ lại UI
+        inv: Array(10).fill(null), slot: 0,
+        dead: false, mining: 0,
+        input: { l:0, r:0, j:0, atk:0, use:0, drop:0 },
+        dirtyUI: true // <--- KHÓA SỬA LỖI: Chỉ cập nhật UI khi cần thiết
     };
     GAME.inv[0] = { id: ID.WOOD_SWORD, count: 1 };
     GAME.inv[1] = { id: ID.APPLE, count: 5 };
 
-    // --- ASSET GENERATOR (HD GRAPHICS) ---
+    // --- 3. ASSET GENERATOR (Đồ họa) ---
     class AssetGen {
         static init(scene) {
             const g = scene.make.graphics({x:0,y:0,add:false});
+            
+            // Hàm vẽ block cơ bản
             const drawBlock = (idx, color, noise=0.1) => {
                 g.clear(); g.fillStyle(color); g.fillRect(0,0,32,32);
                 g.fillStyle(0x000000, noise); for(let i=0;i<20;i++) g.fillRect(Math.random()*30,Math.random()*30,2,2);
-                g.lineStyle(2,0xFFFFFF,0.2); g.strokeRect(1,1,30,30); // Bevel Light
-                g.fillStyle(0x000000,0.3); g.fillRect(0,30,32,2); g.fillRect(30,0,2,32); // Bevel Shadow
+                g.lineStyle(2,0xFFFFFF,0.2); g.strokeRect(1,1,30,30);
+                g.fillStyle(0x000000,0.3); g.fillRect(0,30,32,2); g.fillRect(30,0,2,32);
                 g.generateTexture('b_'+idx,32,32);
             };
 
-            // Blocks
-            drawBlock(ID.DIRT, 0x795548, 0.15);
-            drawBlock(ID.STONE, 0x808080, 0.2);
-            drawBlock(ID.SAND, 0xE6D690, 0.1);
-            drawBlock(ID.SNOW, 0xFFFFFF, 0.05);
-            drawBlock(ID.LOG, 0x5D4037, 0.3);
-            drawBlock(ID.PLANKS, 0xA1887F, 0.05);
-            drawBlock(ID.BRICK, 0x757575, 0.1);
-            drawBlock(ID.WORKBENCH, 0x8D6E63); drawBlock(ID.FURNACE, 0x424242);
+            // Tạo các block
+            drawBlock(ID.DIRT, 0x795548); drawBlock(ID.STONE, 0x808080);
+            drawBlock(ID.SAND, 0xE6D690); drawBlock(ID.SNOW, 0xFFFFFF);
+            drawBlock(ID.LOG, 0x5D4037); drawBlock(ID.PLANKS, 0xA1887F);
+            drawBlock(ID.BRICK, 0x757575); drawBlock(ID.WORKBENCH, 0x8D6E63);
             
-            // Grass
+            // Cỏ
             g.clear(); g.fillStyle(0x795548); g.fillRect(0,0,32,32); 
             g.fillStyle(0x4CAF50); g.fillRect(0,0,32,12);
             g.generateTexture('b_'+ID.GRASS, 32, 32);
 
-            // Ores
-            const ore = (id, base, gem) => {
-                drawBlock(id, base, 0.2);
-                const t = scene.textures.get('b_'+id);
-                const c = t.getSourceImage().getContext('2d');
-                c.fillStyle = gem; 
-                for(let i=0;i<5;i++) c.fillRect(6+Math.random()*20, 6+Math.random()*20, 5, 5);
-                t.refresh();
-            };
-            ore(ID.COAL_ORE,0x808080,'#222'); ore(ID.IRON_ORE,0x808080,'#E0C0A0'); 
-            ore(ID.GOLD_ORE,0x808080,'#FFD700'); ore(ID.DIAMOND_ORE,0x808080,'#00FFFF');
-
-            // Complex Blocks
-            g.clear(); g.fillStyle(0x388E3C); g.fillRect(0,0,32,32); g.fillStyle(0x66BB6A); 
-            for(let i=0;i<20;i++) g.fillRect(Math.random()*28,Math.random()*28,4,4);
+            // Lá
+            g.clear(); g.fillStyle(0x388E3C); g.fillRect(0,0,32,32); g.fillStyle(0x66BB6A); for(let i=0;i<20;i++) g.fillRect(Math.random()*28,Math.random()*28,4,4);
             g.generateTexture('b_'+ID.LEAVES, 32, 32);
 
+            // Cửa & Xương rồng
             g.clear(); g.fillStyle(0x2E7D32); g.fillRect(4,0,24,32); g.fillStyle(0x1B5E20); for(let i=4;i<32;i+=4) g.fillRect(4,i,2,2); g.generateTexture('b_'+ID.CACTUS,32,32);
-            
             g.clear(); g.fillStyle(0xA1887F); g.fillRect(4,0,24,32); g.lineStyle(2,0x5D4037); g.strokeRect(4,0,24,32); g.fillStyle(0xFFD700); g.fillCircle(22,16,2); g.generateTexture('b_'+ID.DOOR_CLOSED,32,32);
             g.clear(); g.fillStyle(0x5D4037); g.fillRect(2,0,6,32); g.generateTexture('b_'+ID.DOOR_OPEN,32,32);
 
-            // Items
-            const item = (n, c) => { g.clear(); g.fillStyle(c); g.fillCircle(16,16,10); g.lineStyle(2,0xFFFFFF); g.strokeCircle(16,16,10); g.generateTexture(n,32,32); };
-            item('i_apple', 0xD50000); item('i_tool', 0x8D6E63); item('i_slime', 0x76FF03); item('i_mat', 0xAAAAAA);
+            // Quặng
+            const ore = (id, c) => { drawBlock(id, 0x808080); const t=scene.textures.get('b_'+id); const x=t.getSourceImage().getContext('2d'); x.fillStyle=c; for(let i=0;i<5;i++) x.fillRect(Math.random()*24+4,Math.random()*24+4,4,4); t.refresh(); };
+            ore(ID.COAL_ORE,'#222'); ore(ID.IRON_ORE,'#ECA'); ore(ID.GOLD_ORE,'#FE0'); ore(ID.DIAMOND_ORE,'#0FF');
 
-            // Mobs
+            // Items / Mobs / Particle
+            const item = (n,c) => { g.clear(); g.fillStyle(c); g.fillCircle(16,16,10); g.lineStyle(2,0xFFFFFF); g.strokeCircle(16,16,10); g.generateTexture(n,32,32); };
+            item('i_tool', 0x8D6E63); item('i_mat', 0xAAAAAA); item('i_slime', 0x76FF03); item('i_apple', 0xD50000);
+
             g.clear(); g.fillStyle(0xFBC02D); g.fillRect(8,0,16,10); g.fillStyle(0x0288D1); g.fillRect(8,10,16,12); g.fillStyle(0x1A237E); g.fillRect(8,22,16,10); g.generateTexture('player',32,32);
-            g.clear(); g.fillStyle(0x4CAF50,0.8); g.fillRect(4,10,24,22); g.fillStyle(0x1B5E20); g.fillRect(8,15,4,4); g.fillRect(20,15,4,4); g.generateTexture('slime',32,32);
-
-            // Particles
-            g.clear(); g.fillStyle(0x64B5F6); g.fillRect(0,0,3,8); g.generateTexture('rain',3,8);
+            g.clear(); g.fillStyle(0x4CAF50); g.fillRect(4,10,24,22); g.generateTexture('slime',32,32);
+            g.clear(); g.fillStyle(0x4FC3F7); g.fillRect(0,0,3,8); g.generateTexture('rain',3,8);
             g.clear(); g.fillStyle(0xFFFFFF); g.fillRect(0,0,4,4); g.generateTexture('snow',4,4);
         }
     }
 
-    // --- GAME SCENE ---
+    // --- 4. GAME SCENE ---
     class GameScene extends Phaser.Scene {
         constructor() { super('Game'); }
         preload() { AssetGen.init(this); }
@@ -114,18 +99,14 @@ window.onload = function() {
             this.W = CFG.W * CFG.TILE; this.H = CFG.H * CFG.TILE;
             this.physics.world.setBounds(0, 0, this.W, this.H);
             
-            // Sky Gradient
+            // Sky & Map
             this.sky = this.add.graphics();
-            
-            // Tilemap setup using Atlas technique for performance
             const map = this.make.tilemap({ tileWidth: 32, tileHeight: 32, width: CFG.W, height: CFG.H });
-            // Create a dynamic tileset from generated textures
-            const totalIDs = 30;
-            const atlas = this.textures.createCanvas('atlas', totalIDs*32, 32);
+            
+            // Tạo Tileset Atlas (Để tối ưu draw calls)
+            const atlas = this.textures.createCanvas('atlas', 30*32, 32);
             const ctx = atlas.getContext();
-            for(let id=0; id<totalIDs; id++) {
-                if(this.textures.exists('b_'+id)) ctx.drawImage(this.textures.get('b_'+id).getSourceImage(), id*32, 0);
-            }
+            for(let id=0; id<30; id++) if(this.textures.exists('b_'+id)) ctx.drawImage(this.textures.get('b_'+id).getSourceImage(), id*32, 0);
             atlas.refresh();
             
             const tileset = map.addTilesetImage('atlas', null, 32, 32);
@@ -145,7 +126,7 @@ window.onload = function() {
             this.cameras.main.startFollow(this.p, true, 0.1, 0.1).setZoom(1.4).setBounds(0,0,this.W,this.H);
             this.hand = this.add.sprite(0,0,'i_tool').setDepth(11).setVisible(false).setScale(0.6);
 
-            // Objects
+            // Entities
             this.drops = this.physics.add.group({dragX:500, bounceY:0.2});
             this.physics.add.collider(this.drops, this.ground);
             this.physics.add.overlap(this.p, this.drops, (p,d)=>this.pickup(d));
@@ -155,10 +136,13 @@ window.onload = function() {
             this.physics.add.collider(this.mobs, this.obj, (m,t)=>{ if(t.index===ID.CACTUS) this.mobHurt(m,5); });
             this.physics.add.overlap(this.p, this.mobs, (p,m)=>this.hitByMob(m));
 
-            // Particles (Single Manager)
-            this.rain = this.add.particles(0,0,'rain',{speedY:{min:300,max:500}, quantity:1, frequency:50, emitting:false});
+            // Particles (Tối ưu: Không tạo object mới trong update)
+            this.rain = this.add.particles(0,0,'rain',{speedY:{min:400,max:600}, quantity:1, frequency:50, emitting:false});
             this.snow = this.add.particles(0,0,'snow',{speedY:{min:50,max:100}, quantity:1, frequency:100, emitting:false});
-            
+            this.rain.setEmitZone({source: new Phaser.Geom.Rectangle(-400, -100, 800, 1)}); // Relative zone
+            this.snow.setEmitZone({source: new Phaser.Geom.Rectangle(-400, -100, 800, 1)});
+
+            // Marker
             this.marker = this.add.rectangle(0,0,32,32).setStrokeStyle(2,0xFFFF00).setVisible(false);
             
             // Input
@@ -167,11 +151,10 @@ window.onload = function() {
 
             this.time.addEvent({delay: CFG.SPAWN_RATE, callback: this.spawnMob, callbackScope: this, loop: true});
             this.scene.launch('UI');
-            document.getElementById('debug').innerText = "Game Running";
         }
 
         genMap() {
-            const set = (l,x,y,id) => { const t=l.putTileAt(id,x,y); t.index=id; }; // Helper
+            const set = (l,x,y,id) => { const t=l.putTileAt(id,x,y); if(t) t.index=id; };
             for(let x=0; x<CFG.W; x++) {
                 let h = 40 + Math.floor(Math.sin(x/15)*10 + Math.cos(x/5)*5);
                 for(let y=0; y<CFG.H; y++) {
@@ -188,24 +171,21 @@ window.onload = function() {
         update(time, delta) {
             if(GAME.dead) return;
 
-            // Environment
-            const cycle = (time % CFG.DAY_LEN) / CFG.DAY_LEN;
-            const isDay = cycle > 0.25 && cycle < 0.75;
+            // Update Sky
+            const cyc = (time % CFG.DAY_LEN) / CFG.DAY_LEN;
+            const isDay = cyc > 0.25 && cyc < 0.75;
             this.sky.clear();
             this.sky.fillGradientStyle(isDay?0x87CEEB:0x000022, isDay?0x87CEEB:0x000022, isDay?0xDDF3F9:0x000000, isDay?0xDDF3F9:0x000000, 1);
             this.sky.fillRect(0,0,this.scale.width, this.scale.height);
 
+            // Weather & Particles
             const px = this.p.x;
-            // Di chuyển Emitter thay vì tạo mới Rect
-            const camW = 800; 
-            this.rain.setEmitZone({source: new Phaser.Geom.Rectangle(px - camW/2, -100, camW, 1)});
-            this.snow.setEmitZone({source: new Phaser.Geom.Rectangle(px - camW/2, -100, camW, 1)});
-            
+            this.rain.setPosition(px, 0); this.snow.setPosition(px, 0);
             if(px < 3200) { this.rain.start(); this.snow.stop(); }
             else if(px > 6400) { this.snow.start(); this.rain.stop(); }
             else { this.rain.stop(); this.snow.stop(); }
 
-            // Physics logic
+            // Move
             const spd = this.keys.SHIFT?.isDown ? CFG.RUN : CFG.WALK;
             if(this.cursors.left.isDown || GAME.input.l) { this.p.setVelocityX(-spd); this.p.setFlipX(true); }
             else if(this.cursors.right.isDown || GAME.input.r) { this.p.setVelocityX(spd); this.p.setFlipX(false); }
@@ -222,18 +202,16 @@ window.onload = function() {
 
             this.handleInput();
 
-            // AI Loop (Tối ưu)
+            // Mobs AI
             this.mobs.children.iterate(m => {
                 if(m && m.body) {
                     if(Math.abs(m.x - this.p.x) < 300) m.setVelocityX(this.p.x > m.x ? 80 : -80);
                     if(m.body.onFloor() && Math.random()<0.01) m.setVelocityY(-300);
                 }
             });
-            
-            // Clean up Drops (Chống tràn RAM)
-            this.drops.children.iterate(d => {
-                if(d && time > d.getData('dieTime')) d.destroy();
-            });
+
+            // Cleanup drops (Fix Memory Leak)
+            this.drops.children.iterate(d => { if(d && time > d.getData('die')) d.destroy(); });
 
             GAME.input.atk=0; GAME.input.use=0; GAME.input.drop=0;
         }
@@ -247,7 +225,7 @@ window.onload = function() {
             }
             this.marker.setPosition(tx*32, ty*32).setVisible(true);
 
-            // MINE
+            // Mine
             if((ptr.isDown && !this.lastP) || GAME.input.atk) {
                 let hit = false;
                 this.mobs.children.iterate(m => {
@@ -268,7 +246,7 @@ window.onload = function() {
                 }
             } else { this.hand.angle = 0; GAME.mining = 0; }
 
-            // PLACE / USE
+            // Place/Use
             if((ptr.rightButtonDown() && !this.lastR) || GAME.input.use) {
                 const item = GAME.inv[GAME.slot];
                 const tObj = this.obj.getTileAt(tx, ty);
@@ -297,7 +275,7 @@ window.onload = function() {
                 if(it) { this.dropItem(this.p.x, this.p.y-20, it.id); this.consume(); }
             }
 
-            // Keyboard Slots
+            // Slot select
             for(let i=0; i<9; i++) if(this.keys[['ONE','TWO','THREE','FOUR','FIVE','SIX','SEVEN','EIGHT','NINE'][i]].isDown) { GAME.slot = i; GAME.dirtyUI = true; }
 
             this.lastP = ptr.isDown; this.lastR = ptr.rightButtonDown();
@@ -313,9 +291,10 @@ window.onload = function() {
             if(id<100) tex = 'b_'+id;
             else if(id===ID.SLIMEBALL) tex = 'i_slime';
             else if(id===ID.APPLE) tex = 'i_apple';
+            else if(id===ID.WOOD_SWORD) tex = 'i_tool';
             
             const d = this.drops.create(x, y, tex).setDisplaySize(16,16);
-            d.setData('id', id).setData('t', this.time.now + 1000).setData('dieTime', this.time.now + CFG.DROP_LIFETIME);
+            d.setData('id', id).setData('t', this.time.now + 1000).setData('die', this.time.now + 60000);
             d.setVelocity(Math.random()*100-50, -200);
         }
 
@@ -323,11 +302,8 @@ window.onload = function() {
             if(this.time.now < d.getData('t') || GAME.dead) return;
             const id = d.getData('id');
             let done = false;
-            // Stack
             for(let i=0; i<10; i++) if(GAME.inv[i] && GAME.inv[i].id === id) { GAME.inv[i].count++; done=true; break; }
-            // New
             if(!done) for(let i=0; i<10; i++) if(!GAME.inv[i]) { GAME.inv[i]={id:id, count:1}; done=true; break; }
-            
             if(done) { d.destroy(); GAME.dirtyUI = true; }
         }
 
@@ -357,11 +333,9 @@ window.onload = function() {
                 GAME.dead = true;
                 this.p.setTint(0xFF0000);
                 GAME.inv.forEach((it,i) => {
-                    if(it) {
-                        for(let k=0;k<it.count;k++) this.dropItem(this.p.x, this.p.y, it.id);
-                        GAME.inv[i] = null;
-                    }
+                    if(it) { for(let k=0;k<it.count;k++) this.dropItem(this.p.x, this.p.y, it.id); GAME.inv[i] = null; }
                 });
+                GAME.dirtyUI = true;
                 this.scene.get('UI').showDeath(true);
             }
         }
@@ -373,17 +347,16 @@ window.onload = function() {
         }
     }
 
-    // --- UI SCENE (SMART UPDATE) ---
+    // --- 5. UI SCENE (FIXED: SMART UPDATE) ---
     class UIScene extends Phaser.Scene {
         constructor() { super('UI'); }
         create() {
             const W = this.scale.width, H = this.scale.height;
-            // Bars
             this.add.text(10, 10, 'HP', {fontSize:12});
             this.hpBar = this.add.rectangle(35, 18, 150, 12, 0xFF0000).setOrigin(0);
             this.add.rectangle(35, 18, 150, 12).setStrokeStyle(1, 0xFFFFFF).setOrigin(0);
 
-            // Slots
+            // Slots (Tạo 1 lần duy nhất)
             this.slots = [];
             const sx = (W - 10*36)/2;
             for(let i=0; i<10; i++) {
@@ -406,7 +379,6 @@ window.onload = function() {
             btn(W-40, H-100, 'U', ()=>GAME.input.use=1);
             btn(W-90, H-100, 'D', ()=>GAME.input.drop=1);
 
-            // Death Screen
             this.deathPnl = this.add.container(W/2, H/2).setVisible(false);
             this.deathPnl.add([
                 this.add.rectangle(0,0,W,H,0x000000,0.8),
@@ -418,7 +390,7 @@ window.onload = function() {
         showDeath(v) { this.deathPnl.setVisible(v); }
 
         update() {
-            // FIX CRASH: Only update if Dirty Flag is true
+            // FIX QUAN TRỌNG NHẤT: CHỈ UPDATE KHI CẦN
             if(GAME.dirtyUI) {
                 this.hpBar.width = (GAME.hp/GAME.maxHp)*150;
                 for(let i=0; i<10; i++) {
@@ -428,9 +400,9 @@ window.onload = function() {
                     if(it) {
                         let tex = 'i_mat';
                         if(it.id<100) tex = 'b_'+it.id;
-                        else if(it.id===ID.WOOD_SWORD) tex = 'i_tool';
-                        else if(it.id===ID.APPLE) tex = 'i_apple';
                         else if(it.id===ID.SLIMEBALL) tex = 'i_slime';
+                        else if(it.id===ID.APPLE) tex = 'i_apple';
+                        else if(it.id===ID.WOOD_SWORD) tex = 'i_tool';
                         else if(it.id===ID.DOOR_ITEM) tex = 'b_'+ID.DOOR_CLOSED;
                         
                         s.ico.setVisible(true).setTexture(tex);
@@ -439,7 +411,7 @@ window.onload = function() {
                         s.ico.setVisible(false); s.txt.setText('');
                     }
                 }
-                GAME.dirtyUI = false; // Reset flag
+                GAME.dirtyUI = false;
             }
         }
     }
